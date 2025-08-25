@@ -28,6 +28,14 @@ if 'analysis_cache' not in st.session_state:
 # Add performance mode toggle
 FAST_MODE = st.sidebar.checkbox("⚡ Fast Mode (Basic Analysis)", value=False)
 
+# Add ultra fast mode link
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🚀 **Speed Options**")
+if st.sidebar.button("⚡ **ULTRA FAST APP**", type="primary"):
+    st.sidebar.markdown("**Opening Ultra Fast App...**")
+    st.sidebar.markdown("[Click here if it doesn't open](http://localhost:8512)")
+    # Note: Will start the ultra fast app below
+
 # Custom CSS for better styling
 st.markdown("""
 <style>
@@ -201,9 +209,17 @@ def main():
         
         # State inspection link
         st.subheader("🔍 State Monitor")
-        st.markdown("Monitor workflow states: [Open State Monitor](http://localhost:8503)")
+        if st.session_state.get('symbol'):
+            monitor_url = f"http://localhost:8503/?symbol={st.session_state.symbol}"
+            st.markdown(f"Monitor workflow states: [Open State Monitor for {st.session_state.symbol}]({monitor_url})")
+        else:
+            st.markdown("Monitor workflow states: [Open State Monitor](http://localhost:8503)")
         if st.button("🚀 Launch State Monitor"):
-            st.markdown("State monitor should be running at http://localhost:8503")
+            if st.session_state.get('symbol'):
+                monitor_url = f"http://localhost:8503/?symbol={st.session_state.symbol}"
+                st.markdown(f"State monitor should open at: {monitor_url}")
+            else:
+                st.markdown("State monitor should be running at http://localhost:8503")
     
     # Performance metrics section
     if st.session_state.get('show_metrics', False):

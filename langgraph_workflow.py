@@ -9,6 +9,16 @@ import streamlit as st
 import time
 import operator
 
+# Import the workflow state bridge for real-time monitoring
+try:
+    from workflow_state_bridge import log_workflow_state, start_workflow_monitoring
+except ImportError:
+    # Fallback if bridge is not available
+    def log_workflow_state(step_name: str, state_data: Dict[str, Any]):
+        pass
+    def start_workflow_monitoring(symbol: str, run_id: str = None):
+        pass
+
 # Define the state structure for the workflow
 class WorkflowState(TypedDict):
     symbol: str
@@ -44,8 +54,35 @@ def inspect_state(step_name: str, state: WorkflowState):
         # Print to console for debugging
         print(f"🔍 [{step_name}] Symbol: {state_snapshot['symbol']}, Status: {state_snapshot['status']}, Errors: {state_snapshot['errors_count']}")
         
+        # Log to state bridge for real-time monitoring
+        log_workflow_state(step_name, {
+            'symbol': state.get('symbol', 'Unknown'),
+            'status': state.get('status', 'Unknown'),
+            'progress': _calculate_progress(step_name),
+            'errors_count': len(state.get('errors', [])),
+            'has_stock_data': bool(state.get('stock_data')),
+            'has_news_data': bool(state.get('news_data')),
+            'has_stock_analysis': bool(state.get('stock_analysis')),
+            'has_news_analysis': bool(state.get('news_analysis')),
+            'has_final_analysis': bool(state.get('final_analysis')),
+            'duration': time.time() - state_snapshot['timestamp']
+        })
+        
     except Exception as e:
         print(f"Error in state inspection: {e}")
+
+def _calculate_progress(step_name: str) -> int:
+    """Calculate progress percentage based on step name"""
+    progress_map = {
+        'fetch_stock_data': 20,
+        'fetch_news_data': 40,
+        'analyze_stock': 60,
+        'analyze_news': 80,
+        'coordinate_analysis': 100,
+        'workflow_start': 0,
+        'workflow_complete': 100
+    }
+    return progress_map.get(step_name, 0)
 
 class LangGraphTradingWorkflow:
     """LangGraph-based multi-agent trading analysis workflow"""
@@ -249,6 +286,10 @@ class LangGraphTradingWorkflow:
     async def run_analysis(self, symbol: str) -> WorkflowState:
         """Run the complete analysis workflow"""
         try:
+            # Start workflow monitoring
+            run_id = f"analysis_{symbol}_{int(time.time())}"
+            start_workflow_monitoring(symbol.upper(), run_id)
+            
             # Initialize the workflow state
             initial_state = WorkflowState(
                 symbol=symbol.upper(),
@@ -261,9 +302,15 @@ class LangGraphTradingWorkflow:
                 status="Initialized"
             )
             
+            # Log workflow start
+            inspect_state("workflow_start", initial_state)
+            
             # Run the workflow
-            config = {"configurable": {"thread_id": f"analysis_{symbol}_{int(time.time())}"}}
+            config = {"configurable": {"thread_id": run_id}}
             result = await self.workflow.ainvoke(initial_state, config)
+            
+            # Log workflow completion
+            inspect_state("workflow_complete", result)
             
             return result
             
